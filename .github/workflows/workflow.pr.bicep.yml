@@ -1,0 +1,30 @@
+﻿name: Symphony PR Bicep Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validate-bicep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Azure CLI
+        uses: azure/CLI@v2
+
+      - name: Bicep Build & Lint
+        run: |
+          az bicep build --file bicep/main.bicep
+          az bicep linter --file bicep/main.bicep
+
+      - name: Bicep What-If
+        run: |
+          az deployment group what-if --resource-group {{ secrets.AZURE_RG }} --template-file bicep/main.bicep --parameters @bicep/main.bicepparam
+
+      - name: Run Pester Tests
+        shell: pwsh
+        run: |
+          Install-Module Pester -Force -Scope CurrentUser
+          ./tests/Test-AppInfra.ps1

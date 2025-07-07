@@ -1,0 +1,197 @@
+﻿---
+
+title: Practical Bicep Testing with Microsoft Symphony (Part 2)
+category: Cloud Automation
+heroImg: /uploads/SymphonyExample2.png
+excerpt: >
+  See Microsoft Symphony in action as we walk through automated Bicep validation and deployment for a real-world stack: App Service Plan, Web App, Key Vault, App Config, and Static Web App.
+author: content/authors/warwick.md
+date: 2025-07-07T10:00:00.000Z
+---
+
+
+## Introduction
+
+In [Part 1](/posts/testing-iac-bicep-with-microsoft-symphony), we explored why Microsoft Symphony is a game-changer for Bicep testing and CI/CD. Now it’s time to roll up our sleeves and see Symphony at work with a practical example.
+
+Let’s walk through automated validation, preview, and test for a common Azure stack:  
+- **App Service Plan**  
+- **Web App**  
+- **Azure Key Vault**  
+- **App Configuration**  
+- **Static Web App**
+
+We’ll cover the **repo structure**, a sample **Bicep template**, Symphony workflow configuration, and a working test example. By the end, you’ll have a clear picture of how Symphony fits into a real pipeline.
+
+---
+
+
+## 1. Repository Layout
+
+For this example, here’s a simple repo structure you might use:
+
+`	ext
+.
+├── bicep/
+│   ├── main.bicep
+│   └── main.bicepparam
+├── tests/
+│   └── Test-AppInfra.ps1
+├── .github/
+│   └── workflows/
+main.bicep: Defines our resources (service plan, web app, key vault, etc)
+
+main.bicepparam: Parameters file for the Bicep deployment
+
+tests/: Holds Pester tests for post-deployment validation
+
+.github/workflows/: Contains the Symphony-provided GitHub Actions workflows
+
+2. Sample Bicep Template
+Here’s a practical Bicep file for this stack.
+This is simplified—add your tags, secrets, or more resources as needed.
+
+bicep
+Copy
+Edit
+@description('Name prefix for all resources')
+param namePrefix string = 'demo'
+
+@description('Location for all resources')
+param location string = resourceGroup().location
+
+resource asp 'Microsoft.Web/serverfarms@2022-03-01' = {
+  name: '-asp'
+  location: location
+  sku: {
+    name: 'P1v2'
+    tier: 'PremiumV2'
+  }
+}
+
+resource web 'Microsoft.Web/sites@2022-03-01' = {
+  name: '-web'
+  location: location
+  serverFarmId: asp.id
+  httpsOnly: true
+}
+
+resource kv 'Microsoft.KeyVault/vaults@2023-02-01' = {
+  name: '-kv'
+  location: location
+  properties: {
+    sku: {
+      name: 'standard'
+      family: 'A'
+    }
+    tenantId: subscription().tenantId
+    accessPolicies: []
+    enabledForDeployment: true
+    enableSoftDelete: true
+  }
+}
+
+resource ac 'Microsoft.AppConfiguration/configurationStores@2023-03-01-preview' = {
+  name: '-appcfg'
+  location: location
+  sku: { name: 'standard' }
+}
+
+resource swa 'Microsoft.Web/staticSites@2022-03-01' = {
+  name: '-swa'
+  location: location
+  sku: { name: 'Standard' }
+}
+
+output webAppUrl string = web.properties.defaultHostName
+output staticWebUrl string = swa.properties.defaultHostname
+You can extend this to add identities, secrets, or App Insights as needed.
+
+3. Bicep Parameters Example
+json
+Copy
+Edit
+// main.bicepparam
+{
+  "namePrefix": { "value": "symphonydemo" },
+  "location": { "value": "australiaeast" }
+}
+4. Adding Symphony Workflows
+If you followed Part 1, you’ll have Symphony-generated workflow files in .github/workflows/.
+Here’s the key part—you don’t need to change much! The workflow will run the same steps as before: validate, what-if, deploy, and test.
+
+But let’s write a sample Pester test to check the deployed stack.
+
+5. Example Pester Test (tests/Test-AppInfra.ps1)
+powershell
+Copy
+Edit
+BeforeAll {
+  Import-Module BenchPress.Azure
+
+   = 
+   = "symphonydemo"
+}
+
+Describe "Azure Infra Smoke Test" {
+  It "Should deploy App Service Plan" {
+     = Get-AzBPResource -ResourceType 'Microsoft.Web/serverfarms' -ResourceGroupName  -ResourceName "-asp"
+     | Should -Not -BeNullOrEmpty
+  }
+
+  It "Should deploy Web App and be HTTPS only" {
+     = Get-AzBPResource -ResourceType 'Microsoft.Web/sites' -ResourceGroupName  -ResourceName "-web"
+     | Should -Not -BeNullOrEmpty
+    .properties.httpsOnly | Should -Be True
+  }
+
+  It "Should deploy Key Vault" {
+     = Get-AzBPResource -ResourceType 'Microsoft.KeyVault/vaults' -ResourceGroupName  -ResourceName "-kv"
+     | Should -Not -BeNullOrEmpty
+    .properties.enableSoftDelete | Should -Be True
+  }
+
+  It "Should deploy App Config" {
+     = Get-AzBPResource -ResourceType 'Microsoft.AppConfiguration/configurationStores' -ResourceGroupName  -ResourceName "-appcfg"
+     | Should -Not -BeNullOrEmpty
+  }
+
+  It "Should deploy Static Web App" {
+     = Get-AzBPResource -ResourceType 'Microsoft.Web/staticSites' -ResourceGroupName  -ResourceName "-swa"
+     | Should -Not -BeNullOrEmpty
+  }
+}
+6. Running It: The Workflow in Action
+Push a change or PR: The Symphony workflow spins up a temporary environment, deploys the stack, runs the Pester tests, then tears everything down.
+
+Check results in GitHub Actions: You’ll see pass/fail for each test, plus a “what-if” preview.
+
+Merge with confidence: The PR can’t be merged until everything is green.
+
+Here’s what you get:
+
+Automated validation on every change
+
+No surprises at deploy time
+
+Documentation and confidence for your team and stakeholders
+
+7. Extend and Customise
+Add role assignments, network integration, or managed identities in Bicep as your scenario needs.
+
+Expand your Pester tests: check Key Vault access policies, test config keys, or do a curl to the web endpoint.
+
+Parameterize main.bicepparam for different environments.
+
+Conclusion
+This is Symphony in action for a real, multi-resource Azure stack.
+It’s repeatable, auditable, and developer-friendly.
+You get rapid feedback and confidence—all with minimal effort beyond writing your Bicep and tests.
+
+Try adapting this pattern to your real projects.
+Let me know what you want to see next—more advanced tests, AVM usage, or full-blown branching strategies!
+
+Explore the Microsoft Symphony Repository:
+https://github.com/microsoft/symphony
+
+Happy shipping! 🚀
