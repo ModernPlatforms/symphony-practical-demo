@@ -4,9 +4,10 @@ This repo demonstrates automated validation and deployment of a small Azure stac
 
 ## Structure
 
-.
+```text . 
 ├── bicep/
-│ ├── main.bicep
+│
+├── main.bicep
 │ └── main.bicepparam
 ├── tests/
 │ └── Test-AppInfra.ps1
@@ -16,6 +17,7 @@ This repo demonstrates automated validation and deployment of a small Azure stac
 │ └── workflow.ci.bicep.yml
 ├── posts/
 │ └── practical-bicep-testing-with-microsoft-symphony-part-2.mdx
+```
 
 yaml
 Copy
